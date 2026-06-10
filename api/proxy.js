@@ -9,7 +9,7 @@ export default async function handler(req, res) {
 
     try {
         let targetUrl = null;
-        const path = req.query.path;
+        const path = req.query.path || '';
 
 
 const channelMap = {
