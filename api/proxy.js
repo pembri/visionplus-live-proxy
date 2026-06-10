@@ -106,15 +106,16 @@ export default async function handler(req, res) {
         let targetUrl = '';
 
         const path = req.query.path;
-
-        if (channelMap[path]) {
-            targetUrl = channelMap[path];                    // Short name: /proxy/rcti
-        } else if (path && path.includes('cloudfront.net')) {
-            targetUrl = `https://${path}`;                   // Full path: /proxy/d84q7nw4qf3j3.cloudfront.net/...
-        } else if (req.query.url) {
-            targetUrl = decodeURIComponent(req.query.url);   // Full URL via ?url=
-        } else {
-            return res.status(400).send('Channel tidak ditemukan');
+        if (req.query.url) {
+            targetUrl = decodeURIComponent(req.query.url);
+        } else if (path) {
+            if (path.includes('cloudfront.net')) {
+                targetUrl = `https://${path}`;
+            } else {
+                // short name
+                const channels = { /* ... semua channel kamu ... */ };
+                targetUrl = channels[path] || `https://${path}`;
+            }
         }
 
         console.log('→ Proxying:', targetUrl);
@@ -122,11 +123,15 @@ export default async function handler(req, res) {
         const response = await fetch(targetUrl, {
             method: req.method,
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Vision+ TV) AppleWebKit/537.36',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Vision+ TV Build/UP1A.231105.001) AppleWebKit/537.36 Chrome/128.0.0.0 Mobile Safari/537.36',
                 'Referer': 'https://www.visionplus.id/',
                 'Origin': 'https://www.visionplus.id',
                 'X-Requested-With': 'com.visionplus.app',
-                'Accept': '*/*',
+                'Accept': 'application/dash+xml,application/octet-stream,*/*',
+                'Accept-Language': 'id-ID,id;q=0.9,en;q=0.8',
+                'Sec-Fetch-Site': 'cross-site',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Dest': 'empty',
             },
             body: req.method === 'POST' ? req.body : null,
         });
@@ -134,12 +139,10 @@ export default async function handler(req, res) {
         const buffer = await response.arrayBuffer();
 
         res.setHeader('Content-Type', response.headers.get('content-type') || 'application/dash+xml');
-        res.setHeader('Content-Length', buffer.byteLength);
-
         return res.status(response.status).send(Buffer.from(buffer));
 
     } catch (err) {
         console.error(err);
-        return res.status(502).send('Proxy Error');
+        return res.status(502).send('Proxy Error: ' + err.message);
     }
 }
