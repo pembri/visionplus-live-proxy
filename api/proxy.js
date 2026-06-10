@@ -1,3 +1,17 @@
+export default async function handler(req, res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
+    try {
+        let targetUrl = null;
+        const path = req.query.path;
+
+
 const channelMap = {
     "antv": "https://d84q7nw4qf3j3.cloudfront.net/out/v1/0a6c6b1534444ab4bd903af8761e6747/index.mpd",
     "gtv": "https://d2tjypxxy769fn.cloudfront.net/out/v1/b8b9b1d5f80f45649b4a3619291551ab/index.mpd",
@@ -95,27 +109,16 @@ const channelMap = {
     "tvmu": "https://d84q7nw4qf3j3.cloudfront.net/out/v1/980cfe26ff00479c97eb8057a1129c7f/index.mpd"
 };
 
-export default async function handler(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', '*');
-
-    if (req.method === 'OPTIONS') return res.status(200).end();
-
-    try {
-        let targetUrl = '';
-
-        const path = req.query.path;
-        if (req.query.url) {
+if (channelMap[path]) {
+            targetUrl = channelMap[path];
+        } else if (path && path.includes('cloudfront.net')) {
+            targetUrl = `https://${path}`;
+        } else if (req.query.url) {
             targetUrl = decodeURIComponent(req.query.url);
-        } else if (path) {
-            if (path.includes('cloudfront.net')) {
-                targetUrl = `https://${path}`;
-            } else {
-                // short name
-                const channels = { /* ... semua channel kamu ... */ };
-                targetUrl = channels[path] || `https://${path}`;
-            }
+        }
+
+        if (!targetUrl) {
+            return res.status(400).send('Gunakan: /proxy/rcti atau /proxy/d84q7nw4qf3j3.cloudfront.net/...');
         }
 
         console.log('→ Proxying:', targetUrl);
@@ -123,15 +126,10 @@ export default async function handler(req, res) {
         const response = await fetch(targetUrl, {
             method: req.method,
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Vision+ TV Build/UP1A.231105.001) AppleWebKit/537.36 Chrome/128.0.0.0 Mobile Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Vision+ TV) AppleWebKit/537.36',
                 'Referer': 'https://www.visionplus.id/',
                 'Origin': 'https://www.visionplus.id',
                 'X-Requested-With': 'com.visionplus.app',
-                'Accept': 'application/dash+xml,application/octet-stream,*/*',
-                'Accept-Language': 'id-ID,id;q=0.9,en;q=0.8',
-                'Sec-Fetch-Site': 'cross-site',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Dest': 'empty',
             },
             body: req.method === 'POST' ? req.body : null,
         });
@@ -142,7 +140,7 @@ export default async function handler(req, res) {
         return res.status(response.status).send(Buffer.from(buffer));
 
     } catch (err) {
-        console.error(err);
+        console.error('Fetch Error:', err.message);
         return res.status(502).send('Proxy Error: ' + err.message);
     }
 }
