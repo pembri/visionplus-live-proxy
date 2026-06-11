@@ -1,0 +1,3 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="mdtv" tvg-name="MD TV" tvg-logo="https://thumbor.prod.vidiocdn.com/logo/875.png" group-title="Indonesia",MD TV
+https://DOMAIN-VERCEL-LO.vercel.app/api/stream?id=875
