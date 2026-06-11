@@ -8,7 +8,7 @@ let sessionExpiry = 0;
 export async function getSession() {
   const now = Date.now();
 
-  // Pakai cache kalau masih valid (1 jam)
+  // Pakai cache kalau masih valid
   if (cachedSession && now < sessionExpiry) {
     return cachedSession;
   }
@@ -20,55 +20,120 @@ export async function getSession() {
     throw new Error('VIDIO_EMAIL dan VIDIO_PASSWORD belum diset di environment variables');
   }
 
-  // Step 1: Ambil CSRF token + base cookies
-  const initRes = await fetch('https://m.vidio.com/', {
+  // Step 1: Ambil CSRF token + base cookies dari halaman desktop
+  // (m.vidio.com sering redirect, pakai www agar lebih stabil)
+  const initRes = await fetch('https://www.vidio.com/', {
     headers: {
       'User-Agent': UA,
-      'Accept': 'text/html',
-      'Accept-Language': 'id',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Connection': 'keep-alive',
     },
     redirect: 'follow',
   });
 
-  const initCookies = parseCookies(initRes.headers.getSetCookie?.() || []);
+  const rawSetCookies = initRes.headers.getSetCookie?.() ?? [];
+  const initCookies = parseCookies(rawSetCookies);
   const html = await initRes.text();
 
-  // Ambil CSRF token dari meta tag
-  const csrfMatch = html.match(/name="csrf-token"\s+content="([^"]+)"/);
-  const csrfToken = csrfMatch ? csrfMatch[1] : '';
+  // Cari CSRF token dari berbagai kemungkinan meta tag
+  let csrfToken = '';
+  const csrfPatterns = [
+    /name=["']csrf-token["']\s+content=["']([^"']+)["']/,
+    /content=["']([^"']+)["']\s+name=["']csrf-token["']/,
+    /"csrf_token"\s*:\s*"([^"]+)"/,
+    /csrf.token['"]\s*:\s*['"]([^'"]+)['"]/i,
+  ];
+  for (const pattern of csrfPatterns) {
+    const m = html.match(pattern);
+    if (m) { csrfToken = m[1]; break; }
+  }
 
-  // Step 2: Login
+  // Step 2: Login via JSON endpoint
+  const loginBody = JSON.stringify({ user: { email, password } });
+
   const loginRes = await fetch('https://www.vidio.com/users/sign_in.json', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json, text/plain, */*',
       'X-Api-Key': VIDIO_API_KEY,
       'X-API-Platform': 'web-mobile',
-      'X-CSRF-Token': csrfToken,
-      'Origin': 'https://m.vidio.com',
-      'Referer': 'https://m.vidio.com/',
+      'X-Requested-With': 'XMLHttpRequest',
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+      'Origin': 'https://www.vidio.com',
+      'Referer': 'https://www.vidio.com/sign_in',
       'User-Agent': UA,
-      'Accept': 'application/json',
       'Cookie': serializeCookies(initCookies),
     },
-    body: JSON.stringify({
-      user: { email, password }
-    }),
+    body: loginBody,
   });
 
+  // Jika endpoint JSON gagal, coba endpoint alternatif
   if (!loginRes.ok) {
-    const err = await loginRes.text();
-    throw new Error(`Login gagal (${loginRes.status}): ${err}`);
+    const errText = await loginRes.text();
+    console.error(`[auth] Login JSON gagal (${loginRes.status}):`, errText.slice(0, 300));
+
+    // Fallback: coba endpoint lama (m.vidio.com)
+    const fallbackRes = await fetch('https://m.vidio.com/users/sign_in.json', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Api-Key': VIDIO_API_KEY,
+        'X-API-Platform': 'web-mobile',
+        'X-Requested-With': 'XMLHttpRequest',
+        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        'Origin': 'https://m.vidio.com',
+        'Referer': 'https://m.vidio.com/sign_in',
+        'User-Agent': UA,
+        'Cookie': serializeCookies(initCookies),
+      },
+      body: loginBody,
+    });
+
+    if (!fallbackRes.ok) {
+      const fbErr = await fallbackRes.text();
+      throw new Error(`Login gagal (www: ${loginRes.status}, m: ${fallbackRes.status}): ${fbErr.slice(0, 200)}`);
+    }
+
+    const fbCookies = parseCookies(fallbackRes.headers.getSetCookie?.() ?? []);
+    const allCookies = { ...initCookies, ...fbCookies };
+    cachedSession = serializeCookies(allCookies);
+    sessionExpiry = Date.now() + 55 * 60 * 1000;
+    return cachedSession;
   }
 
-  // Gabungkan semua cookies dari response login
-  const loginCookies = parseCookies(loginRes.headers.getSetCookie?.() || []);
+  // Gabungkan cookies dari response login
+  const loginCookies = parseCookies(loginRes.headers.getSetCookie?.() ?? []);
   const allCookies = { ...initCookies, ...loginCookies };
 
+  // Pastikan ada session cookie (_vidio_session atau user_remember_token)
+  const hasSession = Object.keys(allCookies).some(k =>
+    k.includes('session') || k.includes('token') || k.includes('remember')
+  );
+
+  if (!hasSession) {
+    // Coba parse dari body juga (beberapa response taruh token di body)
+    try {
+      const body = await loginRes.clone().json();
+      if (body?.user?.authentication_token) {
+        allCookies['authentication_token'] = body.user.authentication_token;
+      }
+    } catch (_) {}
+  }
+
   cachedSession = serializeCookies(allCookies);
-  sessionExpiry = now + 55 * 60 * 1000; // cache 55 menit
+  sessionExpiry = Date.now() + 55 * 60 * 1000; // cache 55 menit
 
   return cachedSession;
+}
+
+// Force re-login (dipanggil jika stream endpoint return 401/403)
+export function invalidateSession() {
+  cachedSession = null;
+  sessionExpiry = 0;
 }
 
 function parseCookies(setCookieHeaders) {
