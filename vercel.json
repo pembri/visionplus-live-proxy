@@ -4,7 +4,6 @@
     { "src": "api/stream.py", "use": "@vercel/python" }
   ],
   "routes": [
-    { "src": "/stream-([^/]+)/([^/]+)/master.m3u8", "dest": "/api/stream.py?type=$1&id=$2" },
-    { "src": "/seg(.*)", "dest": "/api/stream.py" }
+    { "src": "/(.*)", "dest": "/api/stream.py" }
   ]
 }
