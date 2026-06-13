@@ -36,11 +36,22 @@ def rewrite_m3u8(content, base_url):
 
 
 def get_akamai_url(stream_id, stream_type="hls"):
+    # Coba langsung ke API Vidio tanpa X-Api-Key
+    url = f"https://api.vidio.com/livestreamings/{stream_id}/stream?initialize=true"
+    resp = requests.get(url, headers=HEADERS, timeout=10)
+    
+    if resp.status_code == 200:
+        data = resp.json()
+        hls = data.get("data", {}).get("attributes", {}).get("hls")
+        if hls:
+            return hls
+    
+    # Fallback ke nextgenz
     nextgenz_url = f"https://nextgenz.my.id/event/pidio/play.m3u8?id={stream_id}&type={stream_type}"
     resp = requests.get(nextgenz_url, headers=HEADERS, allow_redirects=False, timeout=10)
     location = resp.headers.get("Location")
     if not location:
-        raise Exception(f"No redirect: {resp.status_code}")
+        raise Exception(f"No redirect from nextgenz: {resp.status_code}")
     return location
 
 
@@ -50,7 +61,6 @@ class handler(BaseHTTPRequestHandler):
         path = parsed.path
         params = parse_qs(parsed.query)
 
-        # /stream-hls/204/master.m3u8
         m = re.match(r"^/stream-([^/]+)/([^/]+)/master\.m3u8$", path)
         if m:
             stream_type = m.group(1)
@@ -58,7 +68,6 @@ class handler(BaseHTTPRequestHandler):
             self._handle_stream(stream_id, stream_type)
             return
 
-        # /seg?url=...
         if path == "/seg":
             self._handle_seg(params)
             return
