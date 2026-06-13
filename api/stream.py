@@ -1,31 +1,26 @@
-import os
 import json
 import requests
 from http.server import BaseHTTPRequestHandler
 
-VIDIO_COOKIES = os.environ.get("VIDIO_COOKIES", "")
-
 HEADERS = {
     "Accept": "*/*",
     "Accept-Language": "id",
-    "Cache-Control": "no-cache, no-store, must-revalidate",
-    "Origin": "https://m.vidio.com",
-    "Referer": "https://m.vidio.com/",
-    "Pragma": "no-cache",
+    "Origin": "https://www.vidio.com",
+    "Referer": "https://www.vidio.com/",
     "User-Agent": "Mozilla/5.0 (Linux; Android 15; Infinix X6880) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.215 Mobile Safari/537.36",
 }
 
 
 def get_stream_url(stream_id, stream_type="livestreamings"):
     url = f"https://api.vidio.com/{stream_type}/{stream_id}/stream?initialize=true"
-    headers = {**HEADERS, "Cookie": VIDIO_COOKIES}
 
     try:
-        resp = requests.get(url, headers=headers, timeout=10)
+        resp = requests.get(url, headers=HEADERS, timeout=10)
         resp.raise_for_status()
         data = resp.json()
 
-        hls = data.get("data", {}).get("attributes", {}).get("hls")
+        attrs = data.get("data", {}).get("attributes", {})
+        hls = attrs.get("hls")
         if hls:
             return hls, None
 
