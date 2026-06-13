@@ -4,7 +4,6 @@
     { "src": "api/stream.py", "use": "@vercel/python" }
   ],
   "routes": [
-    { "src": "/stream", "dest": "/api/stream.py" },
-    { "src": "/seg", "dest": "/api/stream.py" }
+    { "src": "/(.*)", "dest": "/api/stream.py" }
   ]
 }
