@@ -4,10 +4,10 @@ from http.server import BaseHTTPRequestHandler
 
 HEADERS = {
     "Accept": "*/*",
-    "Accept-Language": "id",
+    "Accept-Encoding": "gzip",
     "Origin": "https://www.vidio.com",
     "Referer": "https://www.vidio.com/",
-    "User-Agent": "Mozilla/5.0 (Linux; Android 15; Infinix X6880) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.215 Mobile Safari/537.36",
+    "User-Agent": "Vidio/6.43.9-8ec34856ef (Linux;Android 11) ExoPlayerLib/2.19.1",
 }
 
 
