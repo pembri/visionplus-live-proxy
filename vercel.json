@@ -9,10 +9,6 @@
     {
       "source": "/stream-mpd/:channel/master.mpd",
       "destination": "/api/stream/:channel"
-    },
-    {
-      "source": "/stream-mpd/:channel/master.mpd",
-      "destination": "/api/stream/:channel"
     }
   ],
   "headers": [
