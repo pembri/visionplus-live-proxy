@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "functions": {
+    "api/stream/[channel].js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/stream-mpd/:channel/master.mpd",
+      "destination": "/api/stream/:channel"
+    },
+    {
+      "source": "/stream-mpd/:channel/master.mpd",
+      "destination": "/api/stream/:channel"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "*" }
+      ]
+    }
+  ]
+}
